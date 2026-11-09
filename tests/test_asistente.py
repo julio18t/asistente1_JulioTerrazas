@@ -44,20 +44,26 @@ def test_consultar_gastos_sin_modelo():
     assert gastos["total_bs"] == 67
 
 
-async def test_registrar_gasto_escribe_en_la_base():
-    with asistente.asistente.override(model=pide("registrar_gasto", {
-        "fecha": "2030-05-14", "categoria": "ocio", "descripcion": "Teatro", "monto": 30,
-    })):
-        respuesta = await asistente.responder("Anota 30 Bs de teatro.")
+def test_registrar_gasto_escribe_en_la_base():
+    respuesta = capacidades.registrar_gasto(
+        fecha="2030-05-14",
+        categoria="ocio",
+        descripcion="Teatro",
+        monto=30,
+    )
+
     assert "Gasto registrado" in respuesta
-    assert capacidades.consultar_gastos("ocio")["total_bs"] == 70  # 40 del CSV + 30
+    assert capacidades.consultar_gastos("ocio")["total_bs"] == 70
 
 
-async def test_monto_negativo_no_se_guarda():
-    with asistente.asistente.override(model=pide("registrar_gasto", {
-        "fecha": "2030-05-14", "categoria": "ocio", "descripcion": "Error", "monto": -5,
-    })):
-        respuesta = await asistente.responder("Anota -5 Bs.")
+def test_monto_negativo_no_se_guarda():
+    respuesta = capacidades.registrar_gasto(
+        fecha="2030-05-14",
+        categoria="ocio",
+        descripcion="Error",
+        monto=-5,
+    )
+
     assert "No se guardó" in respuesta
     assert capacidades.consultar_gastos("ocio")["total_bs"] == 40
 
@@ -113,7 +119,93 @@ async def test_api_sin_token_valido_no_llama_al_modelo(monkeypatch):
 
 async def test_api_con_token_responde(monkeypatch):
     monkeypatch.setattr(settings, "api_tokens", SecretStr("abc,def"))
-    with asistente.asistente.override(model=pide("consultar_gastos", {"categoria": "transporte"})):
-        r = await post_chat({"mensaje": "¿Cuánto gasté en transporte?"}, "def")
+    monkeypatch.setattr(
+        capacidades,
+        "buscar",
+        lambda pregunta, k=3: [
+            {
+                "fuente": "paper_prueba-0",
+                "similitud": 0.9,
+                "texto": "El estudio utiliza simulación Monte Carlo.",
+            }
+        ],
+    )
+
+    with asistente.asistente.override(
+        model=pide(
+            "buscar_documentos",
+            {"pregunta": "¿Qué método utiliza el estudio?"},
+        )
+    ):
+        r = await post_chat(
+            {"mensaje": "¿Qué método utiliza el estudio?"},
+            "def",
+        )
+
     assert r.status_code == 200
-    assert "67" in r.json()["texto"]
+    assert "Monte Carlo" in r.json()["texto"]
+    assert "paper_prueba-0" in r.json()["texto"]
+
+
+async def test_asistente_consulta_papers(monkeypatch):
+    consultas = []
+
+    def buscar_falso(pregunta, k=3):
+        consultas.append(pregunta)
+        return [
+            {
+                "fuente": "paper_prueba-0",
+                "similitud": 0.9,
+                "texto": "El estudio utiliza simulación Monte Carlo.",
+            }
+        ]
+
+    monkeypatch.setattr(capacidades, "buscar", buscar_falso)
+
+    with asistente.asistente.override(
+        model=pide(
+            "buscar_documentos",
+            {"pregunta": "¿Qué método utiliza el estudio?"},
+        )
+    ):
+        respuesta = await asistente.responder(
+            "¿Qué método utiliza el estudio?"
+        )
+
+    assert consultas == ["¿Qué método utiliza el estudio?"]
+    assert "Monte Carlo" in respuesta
+    assert "paper_prueba-0" in respuesta
+
+
+def test_buscar_papers_openalex(monkeypatch):
+    def get_falso(url, params, timeout, headers):
+        assert url == "https://api.openalex.org/works"
+        assert params["search"] == "farm simulation"
+        assert params["per_page"] == 3
+
+        return httpx.Response(
+            200,
+            request=httpx.Request("GET", url),
+            json={
+                "results": [{
+                    "display_name": "Artículo ficticio de prueba",
+                    "publication_year": 2024,
+                    "doi": None,
+                    "id": "https://openalex.org/W000",
+                    "authorships": [
+                        {"author": {"display_name": "Autor de prueba"}}
+                    ],
+                    "open_access": None,
+                }]
+            },
+        )
+
+    monkeypatch.setattr(capacidades.httpx, "get", get_falso)
+
+    resultado = capacidades.buscar_papers("farm simulation", 3)
+    publicacion = resultado["publicaciones"][0]
+
+    assert resultado["fuente"] == "OpenAlex"
+    assert publicacion["autores"] == ["Autor de prueba"]
+    assert publicacion["doi"] is None
+    assert publicacion["enlace_acceso_abierto"] is None

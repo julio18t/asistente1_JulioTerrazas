@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     ollama_model: str = "gemma4:e2b"
     telegram_token: SecretStr = SecretStr("")  # el token de @BotFather
     telegram_permitidos: str = ""  # números de chat separados por coma; vacío = nadie
+    openalex_api_key: SecretStr = SecretStr("")
 
     api_tokens: SecretStr = SecretStr("")  # extra opcional (API.md): tokens de la API separados por coma; vacío = nadie
 

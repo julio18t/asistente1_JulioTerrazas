@@ -1,6 +1,6 @@
 # Secretos: nunca se suben
 .env
-
+datos/cache_embeddings/
 # Entorno y caché de Python
 .venv/
 __pycache__/
@@ -11,3 +11,4 @@ __pycache__/
 
 # Sistema
 .DS_Store
+.vscode/

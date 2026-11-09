@@ -1,3 +1,9 @@
+Asistente de lectura académica para la tesis de Julio Terrazas sobre modelos de simulación y predicción para la evaluación económica ex ante. Consulta dos papers en PDF y responde citando fragmentos. Incorpora búsqueda bibliográfica mediante OpenAlex, con títulos, autores, años y enlaces. Los resultados de OpenAlex son metadatos; no implican lectura del texto completo.
+
+Preguntas de prueba:
+- ¿Qué métodos de simulación aparecen en los PDF? Cita los fragmentos.
+- Busca en OpenAlex tres publicaciones sobre evaluación económica ex ante de tecnologías agrícolas.
+
 # Mi asistente
 
 Plantilla del trabajo final del curso **«Más allá de los chatbots»** de Alex Ojeda Copa. Es el asistente que armamos en clase con [Pydantic AI](https://pydantic.dev/docs/ai/), convertido en un **bot de Telegram** desplegado gratis en **Render**.
